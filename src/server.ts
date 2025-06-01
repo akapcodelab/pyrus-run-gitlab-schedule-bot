@@ -58,6 +58,12 @@ async function playSchedule(): Promise<boolean> {
     return res.ok;
 }
 
+function checkSig(raw: Buffer, sig: string | undefined) {
+    if (!sig) return false;
+    const h = crypto.createHmac("sha1", PYRUS_SECRET).update(raw).digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(h), Buffer.from(sig.toLowerCase()));
+}
+
 async function pyrusComment(task: number, token: string, text: string) {
     const r = await fetch(`https://api.pyrus.com/v4/tasks/${task}/comments`, {
         method: "POST",
@@ -70,6 +76,9 @@ async function pyrusComment(task: number, token: string, text: string) {
 app.post("/", { config: { rawBody: true } }, async (req, rep) => {
     const raw = req.rawBody as Buffer | undefined;
     if (!raw) return rep.code(400).send();
+
+    const sig = req.headers['x-pyrus-sig'] as string | undefined;
+    if (!checkSig(raw, sig)) return rep.code(403).send();
 
     const { task, access_token: token } = req.body as any;
     const taskId = task.id;

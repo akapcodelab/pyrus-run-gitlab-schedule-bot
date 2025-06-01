@@ -1,20 +1,23 @@
-# Pyrus Gitlab schedules bot
+# Pyrus GitLab Schedule Bot
 
-## Разворачивание бота
-git clone …
-cd pyrus-gitlab-bot
-heroku create your-bot
-heroku config:set \
-  PYRUS_SECRET=секрет_из_настроек_бота \
-  GITLAB_TOKEN=xxxx \
-  GITLAB_API_BASE=https://gitlab.pyrus.local/api/v4 \
-  GITLAB_PROJECT_ID=project_id \
-  GITLAB_SCHEDULE_ID=schedule_id
+Маленький бот‑вебхук, который реагирует на упоминание в комментарии задачи Pyrus и дёргает заранее настроенный Schedule (расписание) в GitLab. Если на указанной ветке уже крутится или ждёт запуска активный pipeline, бот вежливо сообщает об этом и предлагает вернуться позже. Если всё свободно — запускает расписание и оповещает о старте.
 
-git push heroku main
+## Как это работает
 
-## Использование
-В Pyrus: Создать бота, URL = https://your-bot.herokuapp.com/
-Секрет вставить в PYRUS_SECRET.
+1. **Pyrus** присылает POST‑вебхук, когда в комментарии тегнут бота.
+2. Бот проверяет HMAC‑подпись (`X‑Pyrus‑Sig`) — для этого нужен `PYRUS_SECRET`.
+3. Запрашивает GitLab API, есть ли на ветке (по `GITLAB_REF`) pipeline со статусом `running` или `pending`.
+4. Если свободно — дёргает `POST /pipeline_schedules/:id/play`.
+5. Пишет комментарий обратно в ту же задачу Pyrus с результатом.
 
-Тегнуть @bot в комментарии. Он проверит расписание #schedule_id, запустит если надо, и ответит тем же комментом.
+## Переменные окружения
+
+|  Переменная          | Что это                                                               |
+| -------------------- | --------------------------------------------------------------------- |
+| `PYRUS_SECRET`       | Security Key, который выдал Pyrus при создании бота                   |
+| `GITLAB_TOKEN`       | Personal Access Token с правом `api`                                  |
+| `GITLAB_API_BASE`    | Базовый URL GitLab API (например `https://gitlab.example.com/api/v4`) |
+| `GITLAB_PROJECT_ID`  | ID проекта, где лежит расписание                                      |
+| `GITLAB_SCHEDULE_ID` | ID самого Schedule, который надо запускать                            |
+| `GITLAB_REF`         | Ветка, на которой проверяем активные pipeline (по умолчанию `master`) |
+| `WAIT_MIN`           | Сколько минут предлагать подождать (текстово)                         |

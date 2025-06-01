@@ -16,6 +16,11 @@ const {
 const WAIT = Number(WAIT_MIN);
 const app = fastify({ logger: true });
 
+app.addHook("onRequest", (req, reply, done) => {
+    app.log.info({ method: req.method, url: req.url, headers: req.headers }, "incoming request (raw)");
+    done();
+});
+
 await app.register(fastifyRawBody, {
     field: "rawBody",
     global: false,
@@ -24,6 +29,7 @@ await app.register(fastifyRawBody, {
 });
 
 function gl(path: string, method: "GET" | "POST" = "GET") {
+    app.log.info({ path, method }, "GitLab call");
     return fetch(`${GITLAB_API_BASE}${path}`, {
         method,
         headers: { "PRIVATE-TOKEN": GITLAB_TOKEN, "Content-Type": "application/json" },
@@ -61,10 +67,13 @@ async function playSchedule(): Promise<boolean> {
 function checkSig(raw: Buffer, sig: string | undefined) {
     if (!sig) return false;
     const h = crypto.createHmac("sha1", PYRUS_SECRET).update(raw).digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(h), Buffer.from(sig.toLowerCase()));
+    const ok = crypto.timingSafeEqual(Buffer.from(h), Buffer.from(sig.toLowerCase()));
+    app.log.info({ ok }, "HMAC check");
+    return ok;
 }
 
 async function pyrusComment(task: number, token: string, text: string) {
+    app.log.info({ task }, "sending comment to Pyrus");
     const r = await fetch(`https://api.pyrus.com/v4/tasks/${task}/comments`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -75,19 +84,26 @@ async function pyrusComment(task: number, token: string, text: string) {
 
 app.post("/", { config: { rawBody: true } }, async (req, rep) => {
     const raw = req.rawBody as Buffer | undefined;
-    if (!raw) return rep.code(400).send();
+    if (!raw) {
+        app.log.error("empty rawBody");
+        return rep.code(400).send();
+    }
 
     const sig = req.headers["x-pyrus-sig"] as string | undefined;
-    if (!checkSig(raw, sig)) return rep.code(403).send();
+    if (!checkSig(raw, sig)) {
+        app.log.warn("invalid signature");
+        return rep.code(403).send();
+    }
 
     const { task, access_token: token } = req.body as any;
     const taskId = task.id;
+    app.log.info({ taskId }, "processing task");
 
     if (await hasActivePipeline()) {
         await pyrusComment(
             taskId,
             token,
-            `Пайплайн уже в работе / в очереди. Попробуйте проверить результат через ${WAIT} мин.`,
+            `Пайплайн уже в работе / в очереди. Попробуйте проверить результат через ${WAIT} мин.`,
         );
         return rep.code(200).send();
     }
@@ -96,7 +112,7 @@ app.post("/", { config: { rawBody: true } }, async (req, rep) => {
         await pyrusComment(
             taskId,
             token,
-            `Запустил пайплайн. Проверьте результат через ${WAIT} мин.`,
+            `Запустил пайплайн. Проверьте результат через ${WAIT} мин.`,
         );
     } else {
         await pyrusComment(
@@ -109,4 +125,10 @@ app.post("/", { config: { rawBody: true } }, async (req, rep) => {
     rep.code(200).send();
 });
 
-app.listen({ host: "0.0.0.0", port: Number(PORT) });
+app.listen({ host: "0.0.0.0", port: Number(PORT) }, (err, addr) => {
+    if (err) {
+        app.log.error(err, "startup failed");
+        process.exit(1);
+    }
+    app.log.info({ addr }, "server listening");
+});

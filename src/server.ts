@@ -77,7 +77,7 @@ app.post("/", { config: { rawBody: true } }, async (req, rep) => {
     const raw = req.rawBody as Buffer | undefined;
     if (!raw) return rep.code(400).send();
 
-    const sig = req.headers['x-pyrus-sig'] as string | undefined;
+    const sig = req.headers["x-pyrus-sig"] as string | undefined;
     if (!checkSig(raw, sig)) return rep.code(403).send();
 
     const { task, access_token: token } = req.body as any;

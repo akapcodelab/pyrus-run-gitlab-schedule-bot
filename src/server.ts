@@ -78,7 +78,7 @@ app.post("/", { config: { rawBody: true } }, async (req, rep) => {
         await pyrusComment(
             taskId,
             token,
-            `Пайплайн уже в работе / в очереди. Проверьте результат через ${WAIT} мин.`,
+            `Пайплайн уже в работе / в очереди. Попробуйте проверить результат через ${WAIT} мин.`,
         );
         return rep.code(200).send();
     }
@@ -93,7 +93,7 @@ app.post("/", { config: { rawBody: true } }, async (req, rep) => {
         await pyrusComment(
             taskId,
             token,
-            "Не смог запустить: GitLab вернул ошибку. Позовите разработчика.",
+            "Не смог запустить: GitLab вернул ошибку =( Позовите разработчика.",
         );
     }
 

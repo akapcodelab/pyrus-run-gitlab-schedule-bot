@@ -17,11 +17,6 @@ const TIMEOUT_MS = 15_000;
 const WAIT = Number(WAIT_MIN);
 const app = fastify({ logger: true });
 
-app.addHook("onRequest", (req, _reply, done) => {
-	app.log.info({ method: req.method, url: req.url, headers: req.headers }, "incoming request (raw)");
-	done();
-});
-
 await app.register(fastifyRawBody, {
 	field: "rawBody",
 	global: false,
@@ -83,7 +78,7 @@ function checkSig(raw: Buffer | string, sigHeader: string | undefined) {
 		.digest("hex")
 		.toLowerCase();
 	const ok = crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
-	app.log.info({ digest, signature, ok }, "HMAC check");
+	app.log.info({ ok }, "HMAC check");
 	return ok;
 }
 
